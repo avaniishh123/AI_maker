@@ -8,7 +8,15 @@ i) Features
 3. WebSocket-based real-time updates – Ensures instant feedback and interaction.
 4. Simple UI for seamless user experience – Minimalistic, easy-to-use frontend.
 
-ii) Project structure
+ii) How it works
+
+1️. User accesses the application via the frontend (index.html).
+2️. AI-generated questions appear dynamically.
+3️. User answers the questions, and data is sent to the backend (/saveSession).
+4️. Data is stored and can be retrieved via GET /sessions.
+5️. WebSocket (socket.io) updates all connected clients with new sessions in real time.
+
+iii) Project structure
 
 /ai-interview-maker
 │── public/             # Frontend files (index.html, styles, scripts)
@@ -17,13 +25,4 @@ ii) Project structure
 │── package.json        # Project dependencies and scripts
 │── package-lock.json   # Lockfile for npm dependencies
 │── README.md           # Documentation
-
-
-iii) How it works
-
-1️. User accesses the application via the frontend (index.html).
-2️. AI-generated questions appear dynamically.
-3️. User answers the questions, and data is sent to the backend (/saveSession).
-4️. Data is stored and can be retrieved via GET /sessions.
-5️. WebSocket (socket.io) updates all connected clients with new sessions in real time.
 
