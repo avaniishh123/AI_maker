@@ -1,0 +1,39 @@
+// server.js
+const express = require('express');
+const http = require('http');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const socketIo = require('socket.io');
+
+const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: { origin: "*" }
+});
+const port = 3000;
+
+app.use(cors());
+app.use(bodyParser.json());
+
+let sessions = [];
+
+// Endpoint to save session data and broadcast via Socket.io
+app.post('/saveSession', (req, res) => {
+  const sessionData = req.body;
+  if (!sessionData || !sessionData.session) {
+    return res.status(400).json({ message: 'Invalid session data.' });
+  }
+  sessions.push(sessionData);
+  io.emit('newSession', sessionData);
+  console.log("New session saved:", sessionData);
+  res.status(200).json({ message: 'Session saved successfully!' });
+});
+
+// Endpoint to retrieve all sessions
+app.get('/sessions', (req, res) => {
+  res.status(200).json(sessions);
+});
+
+server.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
