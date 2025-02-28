@@ -19,9 +19,9 @@ ii) How it works
 iii) Project structure
 
 /ai-interview-maker
-│── public/             # Frontend files (index.html, styles, scripts)
-│── node_modules/       # Installed dependencies
-│── server.js           # Express.js backend with REST API and WebSockets
-│── package.json        # Project dependencies and scripts
-│── package-lock.json   # Lockfile for npm dependencies
-│── README.md           # Documentation
+── public/             # Frontend files (index.html, styles, scripts)
+── node_modules/       # Installed dependencies
+── server.js           # Express.js backend with REST API and WebSockets
+── package.json        # Project dependencies and scripts
+── package-lock.json   # Lockfile for npm dependencies
+
