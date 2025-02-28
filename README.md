@@ -20,7 +20,6 @@ ii) Project structure
 
 
 iii) How it works
-
 1️. User accesses the application via the frontend (index.html).
 2️. AI-generated questions appear dynamically.
 3️. User answers the questions, and data is sent to the backend (/saveSession).
