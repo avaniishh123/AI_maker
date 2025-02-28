@@ -9,11 +9,11 @@ i) Features
 4. Simple UI for seamless user experience – Minimalistic, easy-to-use frontend.
 
 ii) How it works
-1️. User accesses the application via the frontend (index.html).
-2️. AI-generated questions appear dynamically.
-3️. User answers the questions, and data is sent to the backend (/saveSession).
-4️. Data is stored and can be retrieved via GET /sessions.
-5️. WebSocket (socket.io) updates all connected clients with new sessions in real time.
+1. User accesses the application via the frontend (index.html).
+2. AI-generated questions appear dynamically.
+3. User answers the questions, and data is sent to the backend (/saveSession).
+4. Data is stored and can be retrieved via GET /sessions.
+5. WebSocket (socket.io) updates all connected clients with new sessions in real time.
 
 
 iii) Project structure
