@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Ultimate AI Interview Maker</title>
+  <!-- External Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.4.0/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  
+  <style>
+    /* Global Styles */
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1f1c2c, #928dab);
+      overflow: hidden;
+      color: #fff;
+    }
+    .blur-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(5px);
+      z-index: 1;
+    }
+    .container {
+      position: relative;
+      z-index: 2;
+      width: 90%;
+      max-width: 900px;
+      margin: 40px auto;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+      text-align: center;
+    }
+    h1 { margin-bottom: 10px; }
+    select, button, textarea {
+      padding: 10px;
+      margin: 10px;
+      font-size: 1em;
+      border-radius: 5px;
+      border: none;
+    }
+    select, textarea {
+      width: 80%;
+      max-width: 500px;
+    }
+    button {
+      cursor: pointer;
+      background: #ff6b00;
+      color: #fff;
+      transition: background 0.3s;
+    }
+    button:hover { background: #e65c00; }
+    #setupContainer { margin-top: 100px; }
+    #interviewContainer { display: none; }
+    /* Three.js Canvas for 3D Avatar */
+    #avatarCanvas {
+      width: 150px;
+      height: 150px;
+      margin: 0 auto 20px;
+      display: block;
+      border: 2px solid #ff6b00;
+      border-radius: 50%;
+    }
+    .progress-container {
+      margin: 20px 0;
+    }
+    progress {
+      width: 100%;
+      height: 20px;
+    }
+    #timer {
+      font-size: 1.2em;
+      margin: 10px;
+    }
+    #chartContainer {
+      width: 100%;
+      max-width: 600px;
+      margin: 20px auto;
+    }
+    #socketNotification {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.7);
+      padding: 10px 20px;
+      border-radius: 5px;
+      font-size: 0.9em;
+      z-index: 1000;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="blur-overlay"></div>
+  <canvas id="confettiCanvas"></canvas>
+  <div id="socketNotification"></div>
+
+  <!-- Setup Section -->
+  <div id="setupContainer" class="container">
+    <h1>Welcome to the Ultimate AI Interview Maker!</h1>
+    <p>Select your job role to begin:</p>
+    <select id="jobRoleSelect">
+      <option value="">-- Choose Job Role --</option>
+      <option value="Software Engineer">Software Engineer</option>
+      <option value="Product Manager">Product Manager</option>
+      <option value="Sales Representative">Sales Representative</option>
+    </select><br>
+    <button id="startInterviewBtn">Start Interview</button>
+  </div>
+
+  <!-- Interview Section -->
+  <div id="interviewContainer" class="container">
+    <!-- 3D Animated Avatar -->
+    <canvas id="avatarCanvas"></canvas>
+    <!-- Question and Timer -->
+    <div class="question" id="questionArea" style="font-size:1.2em; margin-bottom:10px;"></div>
+    <div id="timer">Time left: <span id="countdown">30</span> sec</div>
+    <!-- Answer Input -->
+    <textarea id="answerInput" placeholder="Type your answer or use your voice..."></textarea><br>
+    <button id="speakBtn">Record Voice Answer</button>
+    <button id="submitBtn">Submit Answer</button>
+    <!-- Feedback and Progress -->
+    <div class="feedback" id="feedbackArea" style="margin-top:15px;"></div>
+    <div class="progress-container">
+      <progress id="progressBar" value="0" max="100"></progress>
+    </div>
+    <button id="mentorModeBtn">Toggle Mentor Mode</button>
+    <!-- Summary and Chart -->
+    <div class="summary" id="summaryArea" style="margin-top:20px;"></div>
+    <div id="chartContainer">
+      <canvas id="performanceChart"></canvas>
+    </div>
+  </div>
+
+  <script>
+    /***************** Global Variables & Setup *****************/
+    let selectedJobRole = "";
+    let sessionData = [];
+    let mentorMode = false;
+    const totalQuestions = 5;
+    let questionCount = 0;
+    let currentTimer, timerInterval;
+    const QUESTION_TIME = 30; // seconds
+
+    // DOM Elements
+    const setupContainer = document.getElementById('setupContainer');
+    const interviewContainer = document.getElementById('interviewContainer');
+    const jobRoleSelect = document.getElementById('jobRoleSelect');
+    const startInterviewBtn = document.getElementById('startInterviewBtn');
+    const questionArea = document.getElementById('questionArea');
+    const answerInput = document.getElementById('answerInput');
+    const feedbackArea = document.getElementById('feedbackArea');
+    const progressBar = document.getElementById('progressBar');
+    const summaryArea = document.getElementById('summaryArea');
+    const mentorModeBtn = document.getElementById('mentorModeBtn');
+    const speakBtn = document.getElementById('speakBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    const countdownEl = document.getElementById('countdown');
+    const socketNotification = document.getElementById('socketNotification');
+
+    /***************** Socket.io Setup *****************/
+    const socket = io("http://localhost:3000");
+    socket.on('newSession', (data) => {
+      showSocketNotification("New session completed by a candidate in " + data.jobRole);
+    });
+    function showSocketNotification(message) {
+      socketNotification.innerText = message;
+      socketNotification.style.display = "block";
+      setTimeout(() => { socketNotification.style.display = "none"; }, 4000);
+    }
+
+    /***************** 3D Avatar with Three.js *****************/
+    let scene, camera, renderer, cube;
+    function initAvatar() {
+      const canvas = document.getElementById('avatarCanvas');
+      renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
+      renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(75, canvas.clientWidth/canvas.clientHeight, 0.1, 1000);
+      camera.position.z = 2;
+      const geometry = new THREE.BoxGeometry();
+      const material = new THREE.MeshBasicMaterial({ color: 0xff6b00, wireframe: true });
+      cube = new THREE.Mesh(geometry, material);
+      scene.add(cube);
+      animateAvatar();
+    }
+    function animateAvatar() {
+      requestAnimationFrame(animateAvatar);
+      cube.rotation.x += 0.01;
+      cube.rotation.y += 0.01;
+      renderer.render(scene, camera);
+    }
+
+    /***************** Voice Features *****************/
+    // Text-to-Speech
+    function speak(text) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      speechSynthesis.speak(utterance);
+    }
+    // Speech Recognition
+    let recognition;
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+      recognition.onresult = (event) => {
+        answerInput.value = event.results[0][0].transcript;
+      };
+      recognition.onerror = (event) => console.error("Speech recognition error:", event.error);
+    } else {
+      speakBtn.disabled = true;
+      speakBtn.innerText = "Voice Not Supported";
+    }
+
+    /***************** Job Role-Based Question Banks *****************/
+    const questionBanks = {
+      "Software Engineer": {
+        technical: [
+          "Explain polymorphism in object-oriented programming.",
+          "How do you handle memory management in C++?",
+          "Describe how you would design a RESTful API."
+        ],
+        behavioral: [
+          "Tell me about a challenging technical problem you solved.",
+          "Describe a time you collaborated to overcome a project hurdle."
+        ],
+        industry: [
+          "What are the current trends in software development?",
+          "How do you keep up with emerging technologies?"
+        ]
+      },
+      "Product Manager": {
+        technical: [
+          "How do you collaborate with development teams for product features?",
+          "What metrics do you use to measure product success?"
+        ],
+        behavioral: [
+          "Tell me about a tough decision you made with limited data.",
+          "Describe how you prioritize a product roadmap."
+        ],
+        industry: [
+          "What trends are shaping the product management field?",
+          "How do you analyze market competition?"
+        ]
+      },
+      "Sales Representative": {
+        technical: [
+          "How do you utilize CRM tools to manage your pipeline?"
+        ],
+        behavioral: [
+          "Tell me about a time you exceeded your sales target.",
+          "Describe a challenging negotiation you led."
+        ],
+        industry: [
+          "What strategies do you use to identify potential clients?",
+          "How do you stay informed about market trends?"
+        ]
+      }
+    };
+
+    let currentQuestion = "";
+    let currentCategory = "";
+
+    /***************** Sentiment Analysis & Feedback *****************/
+    function analyzeSentiment(answer) {
+      const positive = ["good", "great", "excellent", "positive", "well", "success"];
+      const negative = ["bad", "poor", "difficult", "problem", "negative", "fail"];
+      const words = answer.toLowerCase().split(/\s+/);
+      let score = 0;
+      words.forEach(word => {
+        if (positive.includes(word)) score++;
+        if (negative.includes(word)) score--;
+      });
+      return score;
+    }
+    function processAnswer(answer) {
+      const wordCount = answer.trim().split(/\s+/).length;
+      const sentimentScore = analyzeSentiment(answer);
+      let strengths = "";
+      let improvement = "";
+      let tips = "";
+      if (wordCount < 10) {
+        improvement = "Your answer is quite short.";
+        tips = "Try to elaborate with details and examples.";
+      } else {
+        strengths = "Your answer is detailed.";
+      }
+      if (sentimentScore < 0) improvement += " Consider using a more positive tone.";
+      else if (sentimentScore > 0) strengths += " Your tone is upbeat.";
+      let feedback = strengths + " " + improvement + " " + tips;
+      if (mentorMode) {
+        feedback += " Model Tip: Structure your response with context, actions, and outcomes.";
+      }
+      return { feedback, wordCount, sentimentScore };
+    }
+
+    /***************** Adaptive Interviewing *****************/
+    function selectQuestion() {
+      const banks = questionBanks[selectedJobRole];
+      const categories = Object.keys(banks);
+      // Randomly choose a category and then a question from that category
+      currentCategory = categories[Math.floor(Math.random() * categories.length)];
+      const questionsArray = banks[currentCategory];
+      currentQuestion = questionsArray[Math.floor(Math.random() * questionsArray.length)];
+      return currentQuestion;
+    }
+
+    /***************** Timer for Each Question *****************/
+    function startTimer() {
+      currentTimer = QUESTION_TIME;
+      countdownEl.innerText = currentTimer;
+      timerInterval = setInterval(() => {
+        currentTimer--;
+        countdownEl.innerText = currentTimer;
+        if (currentTimer <= 0) {
+          clearInterval(timerInterval);
+          submitAnswer();  // auto-submit if time runs out
+        }
+      }, 1000);
+    }
+    function stopTimer() {
+      clearInterval(timerInterval);
+    }
+
+    /***************** Confetti Celebration *****************/
+    function launchConfetti() {
+      confetti({
+        particleCount: 150,
+        spread: 60,
+        origin: { y: 0.6 }
+      });
+    }
+
+    /***************** Performance Chart with Chart.js *****************/
+    let performanceChart;
+    function renderChart(data) {
+      const ctx = document.getElementById('performanceChart').getContext('2d');
+      if (performanceChart) performanceChart.destroy();
+      performanceChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: data.labels,
+          datasets: [{
+            label: 'Word Count',
+            data: data.wordCounts,
+            backgroundColor: 'rgba(255,107,0,0.7)'
+          },
+          {
+            label: 'Sentiment Score',
+            data: data.sentiments,
+            backgroundColor: 'rgba(0,155,222,0.7)'
+          }]
+        },
+        options: {
+          scales: {
+            y: { beginAtZero: true }
+          },
+          plugins: {
+            legend: { labels: { color: '#fff' } }
+          }
+        }
+      });
+    }
+
+    /***************** Interview Flow *****************/
+    function startInterview() {
+      sessionData = [];
+      questionCount = 0;
+      progressBar.value = 0;
+      summaryArea.innerText = "";
+      // Initialize 3D avatar
+      initAvatar();
+      askQuestion();
+    }
+    function askQuestion() {
+      answerInput.value = "";
+      feedbackArea.innerText = "";
+      const q = selectQuestion();
+      questionArea.innerText = q;
+      speak(q);
+      startTimer();
+    }
+    function submitAnswer() {
+      stopTimer();
+      const answer = answerInput.value;
+      if (!answer.trim()) {
+        alert("Please provide an answer before submitting.");
+        return;
+      }
+      const analysis = processAnswer(answer);
+      feedbackArea.innerText = analysis.feedback;
+      sessionData.push({
+        question: currentQuestion,
+        category: currentCategory,
+        answer,
+        feedback: analysis.feedback,
+        wordCount: analysis.wordCount,
+        sentiment: analysis.sentimentScore
+      });
+      questionCount++;
+      progressBar.value = (questionCount / totalQuestions) * 100;
+      setTimeout(() => {
+        if (questionCount < totalQuestions) {
+          askQuestion();
+        } else {
+          concludeInterview();
+        }
+      }, 1500);
+    }
+
+    /***************** Voice Button & Mentor Mode *****************/
+    speakBtn.addEventListener('click', () => { if (recognition) recognition.start(); });
+    mentorModeBtn.addEventListener('click', () => {
+      mentorMode = !mentorMode;
+      mentorModeBtn.innerText = mentorMode ? "Mentor Mode: ON" : "Toggle Mentor Mode";
+    });
+    submitBtn.addEventListener('click', submitAnswer);
+
+    /***************** Conclude Interview *****************/
+    function concludeInterview() {
+      questionArea.innerText = "Interview Completed!";
+      speak("Congratulations, you have completed the interview. Great work!");
+      launchConfetti();
+      // Generate a textual summary
+      const summaryText = sessionData.map((item, index) =>
+        `${index + 1}. [${item.category}] Q: ${item.question}\n   A: ${item.answer}\n   Feedback: ${item.feedback}\n   (Words: ${item.wordCount}, Sentiment: ${item.sentiment})`
+      ).join("\n\n");
+      summaryArea.innerText = "Session Summary:\n" + summaryText;
+      // Prepare performance chart data
+      const labels = sessionData.map((_, i) => `Q${i + 1}`);
+      const wordCounts = sessionData.map(item => item.wordCount);
+      const sentiments = sessionData.map(item => item.sentiment);
+      renderChart({ labels, wordCounts, sentiments });
+      // Send session data to the server
+      fetch('http://localhost:3000/saveSession', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session: sessionData, completedAt: new Date(), jobRole: selectedJobRole })
+      })
+      .then(res => res.json())
+      .then(data => console.log(data.message))
+      .catch(err => console.error('Error saving session:', err));
+    }
+
+    /***************** Setup Event *****************/
+    startInterviewBtn.addEventListener('click', () => {
+      selectedJobRole = jobRoleSelect.value;
+      if (!selectedJobRole) {
+        alert("Please select a job role to continue.");
+        return;
+      }
+      setupContainer.style.display = "none";
+      interviewContainer.style.display = "block";
+      speak(`Welcome ${selectedJobRole}. Let's begin your interview practice.`);
+      setTimeout(startInterview, 3000);
+    });
+  </script>
+</body>
+</html>
