@@ -1,6 +1,3 @@
-Here is a clean and professional `README.md` file you can use for your GitHub repository:
-
----
 
 # 🧠 AI Interview Maker
 
